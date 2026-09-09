@@ -27,3 +27,30 @@ def plan_marker_splits(total_pages: int, matching_pages: list[int]) -> list[Spli
         end_page = split_starts[index + 1] if index + 1 < len(split_starts) else total_pages
         intervals.append(SplitInterval(start_page, end_page))
     return intervals
+
+
+def plan_police_code_splits(
+    page_codes: list[str | None],
+) -> tuple[list[SplitInterval], list[str]]:
+    if not page_codes:
+        raise ValueError("total_pages must be >= 1")
+    if page_codes[0] is None:
+        raise ValueError("No police document code found on page 1")
+
+    intervals: list[SplitInterval] = []
+    interval_codes: list[str] = []
+    current_code = page_codes[0]
+    start_page = 0
+
+    for page_index, page_code in enumerate(page_codes[1:], start=1):
+        if page_code is None or page_code == current_code:
+            continue
+
+        intervals.append(SplitInterval(start_page, page_index))
+        interval_codes.append(current_code)
+        current_code = page_code
+        start_page = page_index
+
+    intervals.append(SplitInterval(start_page, len(page_codes)))
+    interval_codes.append(current_code)
+    return intervals, interval_codes

@@ -23,13 +23,27 @@ def test_cli_requires_one_split_mode(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert exit_code == 2
-    assert "one of the arguments --pages --split-on is required" in captured.err
+    assert (
+        "one of the arguments --pages --split-on --police-level is required"
+        in captured.err
+    )
 
 
 def create_text_pdf(path: Path, page_texts: list[str]) -> None:
     pdf = canvas.Canvas(str(path), pagesize=letter)
     for text in page_texts:
         pdf.drawString(72, 720, text)
+        pdf.showPage()
+    pdf.save()
+
+
+def create_police_pdf(path: Path, pages: list[tuple[str, str]]) -> None:
+    pdf = canvas.Canvas(str(path), pagesize=letter)
+    for code, body in pages:
+        pdf.setFillColorRGB(1, 0, 0)
+        pdf.drawRightString(560, 760, code)
+        pdf.setFillColorRGB(0, 0, 0)
+        pdf.drawString(72, 720, body)
         pdf.showPage()
     pdf.save()
 
@@ -105,6 +119,34 @@ def test_cli_splits_by_text_marker(tmp_path):
     assert page_texts(output_dir / "customers_part_001.pdf") == ["KUNDE A", "page A2"]
     assert page_texts(output_dir / "customers_part_002.pdf") == ["KUNDE B", "page B2"]
     assert page_texts(output_dir / "customers_part_003.pdf") == ["KUNDE C"]
+
+
+def test_cli_splits_police_documents_by_level_two(tmp_path):
+    input_pdf = tmp_path / "police.pdf"
+    output_dir = tmp_path / "out"
+    create_police_pdf(
+        input_pdf,
+        [
+            ("01,01", "first"),
+            ("01,01,01", "child"),
+            ("01,02", "second"),
+            ("01,02,01", "second child"),
+            ("02,01", "third"),
+        ],
+    )
+
+    exit_code = run([str(input_pdf), "--police-level", "2", "--out", str(output_dir)])
+
+    assert exit_code == 0
+    assert page_count(output_dir / "police_01.01.pdf") == 2
+    assert page_count(output_dir / "police_01.02.pdf") == 2
+    assert page_count(output_dir / "police_02.01.pdf") == 1
+    assert page_texts(output_dir / "police_01.01.pdf") == ["01,01\nfirst", "01,01,01\nchild"]
+    assert page_texts(output_dir / "police_01.02.pdf") == [
+        "01,02\nsecond",
+        "01,02,01\nsecond child",
+    ]
+    assert page_texts(output_dir / "police_02.01.pdf") == ["02,01\nthird"]
 
 
 def test_cli_refuses_to_overwrite_existing_output(tmp_path, capsys):

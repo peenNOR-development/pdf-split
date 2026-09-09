@@ -30,6 +30,16 @@ Split whenever a page contains a marker. The matching page starts the new PDF:
 pdf-split input.pdf --split-on "KUNDE" --out output/
 ```
 
+Split Norwegian police documents by the hierarchical document number in the
+upper-right corner:
+
+```bash
+pdf-split input.pdf --police-level 2 --out output/
+```
+
+This creates files named after the selected level, for example
+`input_01.02.pdf` and `input_01.03.pdf`.
+
 Existing output files are refused unless `--overwrite` is provided:
 
 ```bash

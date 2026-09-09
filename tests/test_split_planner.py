@@ -1,7 +1,11 @@
 import pytest
 
 from pdf_split.models import SplitInterval
-from pdf_split.split_planner import plan_marker_splits, plan_page_count_splits
+from pdf_split.split_planner import (
+    plan_marker_splits,
+    plan_page_count_splits,
+    plan_police_code_splits,
+)
 
 
 def test_page_count_splits_into_full_and_partial_parts():
@@ -42,3 +46,29 @@ def test_marker_splits_support_consecutive_matches():
         SplitInterval(1, 2),
         SplitInterval(2, 5),
     ]
+
+
+def test_police_code_splits_when_selected_level_changes():
+    intervals, codes = plan_police_code_splits(["01", "01", "02", "02"])
+
+    assert intervals == [SplitInterval(0, 2), SplitInterval(2, 4)]
+    assert codes == ["01", "02"]
+
+
+def test_police_code_splits_consecutive_level_two_codes():
+    intervals, codes = plan_police_code_splits(["01,01", "01,01", "01,02"])
+
+    assert intervals == [SplitInterval(0, 2), SplitInterval(2, 3)]
+    assert codes == ["01,01", "01,02"]
+
+
+def test_police_code_splits_reject_first_page_without_code():
+    with pytest.raises(ValueError, match="No police document code found on page 1"):
+        plan_police_code_splits([None, "01"])
+
+
+def test_police_code_splits_carries_missing_page_code_forward():
+    intervals, codes = plan_police_code_splits(["01", None, "02"])
+
+    assert intervals == [SplitInterval(0, 2), SplitInterval(2, 3)]
+    assert codes == ["01", "02"]
