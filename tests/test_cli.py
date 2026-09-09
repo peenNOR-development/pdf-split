@@ -65,6 +65,21 @@ def create_police_pdf_with_black_top_right_codes(
     pdf.save()
 
 
+def create_police_pdf_with_double_red_codes(
+    path: Path,
+    pages: list[tuple[str, str, str]],
+) -> None:
+    pdf = canvas.Canvas(str(path), pagesize=letter)
+    for primary_code, secondary_code, body in pages:
+        pdf.setFillColorRGB(1, 0, 0)
+        pdf.drawRightString(560, 735, secondary_code)
+        pdf.drawRightString(560, 760, primary_code)
+        pdf.setFillColorRGB(0, 0, 0)
+        pdf.drawString(72, 720, body)
+        pdf.showPage()
+    pdf.save()
+
+
 def create_rotated_police_pdf(path: Path, pages: list[tuple[str, str]]) -> None:
     source_path = path.with_name(f"{path.stem}_source.pdf")
     pdf = canvas.Canvas(str(source_path), pagesize=letter)
@@ -230,6 +245,29 @@ def test_cli_police_mode_handles_rotated_landscape_pages(tmp_path):
     ]
     assert page_count(output_dir / "police_01.pdf") == 2
     assert page_count(output_dir / "police_02.pdf") == 1
+
+
+def test_cli_police_mode_uses_top_red_code_when_multiple_red_codes(tmp_path):
+    input_pdf = tmp_path / "police.pdf"
+    output_dir = tmp_path / "out"
+    create_police_pdf_with_double_red_codes(
+        input_pdf,
+        [
+            ("08,14,02", "10,01,01,04", "first"),
+            ("08,14,03", "10,01,01,05", "same level two"),
+            ("09,01,01", "10,01,01,06", "next level two"),
+        ],
+    )
+
+    exit_code = run([str(input_pdf), "--police-level", "2", "--out", str(output_dir)])
+
+    assert exit_code == 0
+    assert sorted(path.name for path in output_dir.iterdir()) == [
+        "police_08.14.pdf",
+        "police_09.01.pdf",
+    ]
+    assert page_count(output_dir / "police_08.14.pdf") == 2
+    assert page_count(output_dir / "police_09.01.pdf") == 1
 
 
 def test_cli_verbose_explains_police_code_analysis(tmp_path, capsys):

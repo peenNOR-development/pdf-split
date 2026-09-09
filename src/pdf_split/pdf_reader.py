@@ -43,12 +43,14 @@ def extract_top_right_page_texts(
             texts: list[str | None] = []
             total_pages = len(pdf.pages)
             for page_number, page in enumerate(pdf.pages, start=1):
+                rotation = getattr(page, "rotation", 0)
                 page_red_text = _extract_red_text(
                     _visual_top_right_chars(
                         getattr(page, "chars", []),
                         page.bbox,
-                        getattr(page, "rotation", 0),
-                    )
+                        rotation,
+                    ),
+                    rotation,
                 )
                 if page_red_text:
                     texts.append(page_red_text)
@@ -62,7 +64,10 @@ def extract_top_right_page_texts(
                 top_right = page.crop(
                     (x0 + width * 0.65, y0, x1, y0 + height * 0.2)
                 )
-                red_text = _extract_red_text(top_right.chars)
+                red_text = _extract_red_text(
+                    top_right.chars,
+                    getattr(top_right, "rotation", 0),
+                )
                 texts.append(red_text if red_text else top_right.extract_text())
                 if progress_callback is not None:
                     progress_callback(page_number, total_pages)
@@ -71,9 +76,65 @@ def extract_top_right_page_texts(
         raise PdfSplitError(_text_extraction_error(input_path, exc)) from exc
 
 
-def _extract_red_text(chars: list[dict]) -> str | None:
-    text = "".join(char.get("text", "") for char in chars if _is_red_char(char))
+def _extract_red_text(chars: list[dict], rotation: int = 0) -> str | None:
+    red_chars = [char for char in chars if _is_red_char(char)]
+    lines = _group_chars_into_lines(red_chars, rotation)
+    text = "\n".join(_line_text(line, rotation) for line in lines)
     return text or None
+
+
+def _group_chars_into_lines(chars: list[dict], rotation: int) -> list[list[dict]]:
+    lines: list[list[dict]] = []
+    line_tolerance = 3.0
+    rotation = rotation % 360
+    line_axis = 0 if rotation in (90, 270) else 1
+
+    for char in sorted(
+        chars,
+        key=lambda item: _line_order_value(item, rotation),
+    ):
+        center = _char_center(char)
+        for line in lines:
+            line_center = _char_center(line[0])
+            if abs(center[line_axis] - line_center[line_axis]) <= line_tolerance:
+                line.append(char)
+                break
+        else:
+            lines.append([char])
+
+    return lines
+
+
+def _line_text(chars: list[dict], rotation: int) -> str:
+    return "".join(
+        char.get("text", "")
+        for char in sorted(
+            chars,
+            key=lambda item: _char_order_value(item, rotation),
+        )
+    )
+
+
+def _line_order_value(char: dict, rotation: int) -> float:
+    x, y = _char_center(char)
+    if rotation == 90:
+        return -x
+    if rotation == 180:
+        return -y
+    if rotation == 270:
+        return x
+    return y
+
+
+def _char_order_value(char: dict, rotation: int) -> float:
+    x, y = _char_center(char)
+    if rotation == 90:
+        return y
+    if rotation == 180:
+        return -x
+    if rotation == 270:
+        return -y
+    return x
 
 
 def _visual_top_right_chars(
