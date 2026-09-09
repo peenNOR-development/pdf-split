@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 import logging
 from pathlib import Path
 import sys
-from typing import Callable
+from typing import Callable, TextIO
 
 from pdf_split.errors import PdfSplitError
 from pdf_split.matcher import literal_page_matches
@@ -66,6 +66,28 @@ def format_progress(
     return f"[{bar}] {percent}% {label}"
 
 
+def write_progress(
+    stream: TextIO,
+    completed_parts: int,
+    total_parts: int,
+    active_label_template: str = "Writing part {completed}/{total}",
+    done_label: str = "Done",
+) -> None:
+    ending = "\n" if completed_parts == total_parts else ""
+    print(
+        "\r"
+        + format_progress(
+            completed_parts,
+            total_parts,
+            active_label_template=active_label_template,
+            done_label=done_label,
+        ),
+        end=ending,
+        file=stream,
+        flush=True,
+    )
+
+
 def run(argv: list[str] | None = None) -> int:
     configure_pdf_logging()
     parser = build_parser()
@@ -115,14 +137,12 @@ def run(argv: list[str] | None = None) -> int:
                 )
             analysis_progress_callback = None
             if args.verbose:
-                analysis_progress_callback = lambda completed, total: print(
-                    format_progress(
-                        completed,
-                        total,
-                        active_label_template="Analyzing page {completed}/{total}",
-                        done_label="Analysis done",
-                    ),
-                    file=sys.stderr,
+                analysis_progress_callback = lambda completed, total: write_progress(
+                    sys.stderr,
+                    completed,
+                    total,
+                    active_label_template="Analyzing page {completed}/{total}",
+                    done_label="Analysis done",
                 )
             page_codes = detect_police_page_codes(
                 input_path,
@@ -146,9 +166,10 @@ def run(argv: list[str] | None = None) -> int:
         ensure_outputs_available(output_paths, overwrite=args.overwrite)
         progress_callback = None
         if args.verbose:
-            progress_callback = lambda completed, total, _path: print(
-                format_progress(completed, total),
-                file=sys.stderr,
+            progress_callback = lambda completed, total, _path: write_progress(
+                sys.stderr,
+                completed,
+                total,
             )
         try:
             write_pdf_parts(

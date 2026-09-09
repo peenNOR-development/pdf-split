@@ -87,14 +87,14 @@ def test_cli_verbose_reports_wide_hash_progress(tmp_path, capsys):
     captured = capsys.readouterr()
     assert exit_code == 0
     assert (
-        "[#############---------------------------] 33% Writing part 1/3"
+        "\r[#############---------------------------] 33% Writing part 1/3"
         in captured.err
     )
     assert (
-        "[###########################-------------] 67% Writing part 2/3"
+        "\r[###########################-------------] 67% Writing part 2/3"
         in captured.err
     )
-    assert "[########################################] 100% Done" in captured.err
+    assert "\r[########################################] 100% Done\n" in captured.err
 
 
 def test_cli_splits_by_text_marker(tmp_path):
@@ -166,10 +166,10 @@ def test_cli_verbose_explains_police_code_analysis(tmp_path, capsys):
         in captured.err
     )
     assert (
-        "[####################--------------------] 50% Analyzing page 1/2"
+        "\r[####################--------------------] 50% Analyzing page 1/2"
         in captured.err
     )
-    assert "[########################################] 100% Analysis done" in captured.err
+    assert "\r[########################################] 100% Analysis done\n" in captured.err
     assert "Detected 2 coded page(s) and 2 output group(s)." in captured.err
 
 
