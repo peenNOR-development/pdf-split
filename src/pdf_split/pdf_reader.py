@@ -6,6 +6,13 @@ from pypdf import PdfReader
 from pdf_split.errors import PdfSplitError
 
 
+TEXT_EXTRACTION_HINT = (
+    "This can happen when the PDF is locked/password-protected, malformed/corrupt, "
+    "or when its text structure cannot be interpreted by pdfplumber. If the PDF is "
+    "a scanned image, OCR is required and is not supported by this tool yet."
+)
+
+
 def get_page_count(input_path: Path) -> int:
     try:
         reader = PdfReader(input_path)
@@ -23,7 +30,7 @@ def extract_page_texts(input_path: Path) -> list[str | None]:
         with pdfplumber.open(input_path) as pdf:
             return [page.extract_text() for page in pdf.pages]
     except Exception as exc:
-        raise PdfSplitError(f"Could not extract text from PDF: {input_path}") from exc
+        raise PdfSplitError(_text_extraction_error(input_path, exc)) from exc
 
 
 def extract_top_right_page_texts(input_path: Path) -> list[str | None]:
@@ -37,4 +44,12 @@ def extract_top_right_page_texts(input_path: Path) -> list[str | None]:
                 texts.append(top_right.extract_text())
             return texts
     except Exception as exc:
-        raise PdfSplitError(f"Could not extract text from PDF: {input_path}") from exc
+        raise PdfSplitError(_text_extraction_error(input_path, exc)) from exc
+
+
+def _text_extraction_error(input_path: Path, exc: Exception) -> str:
+    reason = f"{type(exc).__name__}: {exc}"
+    return (
+        f"Could not extract text from PDF: {input_path}. "
+        f"Reason: {reason}. {TEXT_EXTRACTION_HINT}"
+    )

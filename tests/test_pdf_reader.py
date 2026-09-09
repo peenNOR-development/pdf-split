@@ -2,7 +2,7 @@ from pypdf import PdfWriter
 import pytest
 
 from pdf_split.errors import PdfSplitError
-from pdf_split.pdf_reader import get_page_count
+from pdf_split.pdf_reader import extract_page_texts, get_page_count
 
 
 def test_get_page_count_translates_malformed_page_tree_errors(tmp_path):
@@ -19,3 +19,24 @@ def test_get_page_count_translates_malformed_page_tree_errors(tmp_path):
 
     with pytest.raises(PdfSplitError, match="Could not read PDF"):
         get_page_count(malformed_pdf)
+
+
+def test_extract_page_texts_includes_underlying_failure_and_hints(
+    tmp_path,
+    monkeypatch,
+):
+    input_pdf = tmp_path / "problem.pdf"
+    input_pdf.write_bytes(b"%PDF-1.4\n")
+
+    def fail_open(_path):
+        raise ValueError("document has no /Root object")
+
+    monkeypatch.setattr("pdf_split.pdf_reader.pdfplumber.open", fail_open)
+
+    with pytest.raises(PdfSplitError) as exc_info:
+        extract_page_texts(input_pdf)
+
+    message = str(exc_info.value)
+    assert f"Could not extract text from PDF: {input_pdf}" in message
+    assert "Reason: ValueError: document has no /Root object" in message
+    assert "locked/password-protected, malformed/corrupt" in message
