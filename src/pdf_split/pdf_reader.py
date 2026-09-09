@@ -49,12 +49,39 @@ def extract_top_right_page_texts(
                 top_right = page.crop(
                     (x0 + width * 0.65, y0, x1, y0 + height * 0.2)
                 )
-                texts.append(top_right.extract_text())
+                red_text = _extract_red_text(top_right.chars)
+                texts.append(red_text if red_text else top_right.extract_text())
                 if progress_callback is not None:
                     progress_callback(page_number, total_pages)
             return texts
     except Exception as exc:
         raise PdfSplitError(_text_extraction_error(input_path, exc)) from exc
+
+
+def _extract_red_text(chars: list[dict]) -> str | None:
+    text = "".join(char.get("text", "") for char in chars if _is_red_char(char))
+    return text or None
+
+
+def _is_red_char(char: dict) -> bool:
+    color = char.get("non_stroking_color")
+    if not isinstance(color, (list, tuple)):
+        return False
+
+    try:
+        values = tuple(float(value) for value in color)
+    except (TypeError, ValueError):
+        return False
+
+    if len(values) == 3:
+        red, green, blue = values
+        return red >= 0.5 and green <= 0.35 and blue <= 0.35
+
+    if len(values) == 4:
+        cyan, magenta, yellow, black = values
+        return cyan <= 0.35 and magenta >= 0.5 and yellow >= 0.5 and black <= 0.35
+
+    return False
 
 
 def _text_extraction_error(input_path: Path, exc: Exception) -> str:

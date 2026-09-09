@@ -50,6 +50,8 @@ def test_extract_page_texts_includes_underlying_failure_and_hints(
 
 def test_extract_top_right_page_texts_uses_actual_page_bbox(monkeypatch):
     class FakeCroppedPage:
+        chars = []
+
         def extract_text(self):
             return "01"
 

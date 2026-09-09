@@ -49,6 +49,22 @@ def create_police_pdf(path: Path, pages: list[tuple[str, str]]) -> None:
     pdf.save()
 
 
+def create_police_pdf_with_black_top_right_codes(
+    path: Path,
+    pages: list[tuple[str, str, str]],
+) -> None:
+    pdf = canvas.Canvas(str(path), pagesize=letter)
+    for red_code, black_code, body in pages:
+        pdf.setFillColorRGB(0, 0, 0)
+        pdf.drawRightString(560, 770, black_code)
+        pdf.setFillColorRGB(1, 0, 0)
+        pdf.drawRightString(560, 745, red_code)
+        pdf.setFillColorRGB(0, 0, 0)
+        pdf.drawString(72, 720, body)
+        pdf.showPage()
+    pdf.save()
+
+
 def page_count(path: Path) -> int:
     return len(PdfReader(path).pages)
 
@@ -148,6 +164,29 @@ def test_cli_splits_police_documents_by_level_two(tmp_path):
         "01,02,01\nsecond child",
     ]
     assert page_texts(output_dir / "police_02.01.pdf") == ["02,01\nthird"]
+
+
+def test_cli_police_mode_prefers_red_document_codes(tmp_path):
+    input_pdf = tmp_path / "police.pdf"
+    output_dir = tmp_path / "out"
+    create_police_pdf_with_black_top_right_codes(
+        input_pdf,
+        [
+            ("01,01", "99,99", "first"),
+            ("01,02", "98,99", "same top-level case"),
+            ("02,01", "97,99", "new top-level case"),
+        ],
+    )
+
+    exit_code = run([str(input_pdf), "--police-level", "1", "--out", str(output_dir)])
+
+    assert exit_code == 0
+    assert sorted(path.name for path in output_dir.iterdir()) == [
+        "police_01.pdf",
+        "police_02.pdf",
+    ]
+    assert page_count(output_dir / "police_01.pdf") == 2
+    assert page_count(output_dir / "police_02.pdf") == 1
 
 
 def test_cli_verbose_explains_police_code_analysis(tmp_path, capsys):
