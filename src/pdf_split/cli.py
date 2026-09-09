@@ -21,7 +21,20 @@ def build_parser() -> ArgumentParser:
     mode_group.add_argument("--split-on")
     parser.add_argument("--out", default=".")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--verbose", action="store_true")
     return parser
+
+
+def format_progress(completed_parts: int, total_parts: int, width: int = 40) -> str:
+    percent = round((completed_parts / total_parts) * 100)
+    filled = round((completed_parts / total_parts) * width)
+    bar = "#" * filled + "-" * (width - filled)
+    label = (
+        "Done"
+        if completed_parts == total_parts
+        else f"Writing part {completed_parts}/{total_parts}"
+    )
+    return f"[{bar}] {percent}% {label}"
 
 
 def run(argv: list[str] | None = None) -> int:
@@ -63,12 +76,19 @@ def run(argv: list[str] | None = None) -> int:
 
         output_paths = build_output_paths(input_path, output_dir, len(intervals))
         ensure_outputs_available(output_paths, overwrite=args.overwrite)
+        progress_callback = None
+        if args.verbose:
+            progress_callback = lambda completed, total, _path: print(
+                format_progress(completed, total),
+                file=sys.stderr,
+            )
         try:
             write_pdf_parts(
                 input_path,
                 intervals,
                 output_paths,
                 overwrite=args.overwrite,
+                progress_callback=progress_callback,
             )
         except OSError as exc:
             raise PdfSplitError(f"Could not write output files to {output_dir}: {exc}") from exc

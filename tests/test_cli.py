@@ -60,6 +60,28 @@ def test_cli_splits_by_page_count(tmp_path, capsys):
     assert page_texts(output_dir / "large_part_003.pdf") == ["five"]
 
 
+def test_cli_verbose_reports_wide_hash_progress(tmp_path, capsys):
+    input_pdf = tmp_path / "large.pdf"
+    output_dir = tmp_path / "out"
+    create_text_pdf(input_pdf, ["one", "two", "three", "four", "five"])
+
+    exit_code = run(
+        [str(input_pdf), "--pages", "2", "--out", str(output_dir), "--verbose"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert (
+        "[#############---------------------------] 33% Writing part 1/3"
+        in captured.err
+    )
+    assert (
+        "[###########################-------------] 67% Writing part 2/3"
+        in captured.err
+    )
+    assert "[########################################] 100% Done" in captured.err
+
+
 def test_cli_splits_by_text_marker(tmp_path):
     input_pdf = tmp_path / "customers.pdf"
     output_dir = tmp_path / "out"

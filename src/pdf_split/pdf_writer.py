@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import tempfile
+from typing import Callable
 
 from pypdf import PdfReader, PdfWriter
 
@@ -29,6 +30,7 @@ def write_pdf_parts(
     intervals: list[SplitInterval],
     output_paths: list[Path],
     overwrite: bool,
+    progress_callback: Callable[[int, int, Path], None] | None = None,
 ) -> None:
     if len(intervals) != len(output_paths):
         raise ValueError("intervals and output_paths must have the same length")
@@ -37,7 +39,11 @@ def write_pdf_parts(
     if reader.is_encrypted:
         raise PdfSplitError("Encrypted or password-protected PDFs are not supported.")
 
-    for interval, output_path in zip(intervals, output_paths, strict=True):
+    total_parts = len(intervals)
+    for part_index, (interval, output_path) in enumerate(
+        zip(intervals, output_paths, strict=True),
+        start=1,
+    ):
         writer = PdfWriter()
         for page_index in range(interval.start_page, interval.end_page_exclusive):
             writer.add_page(reader.pages[page_index])
@@ -66,3 +72,6 @@ def write_pdf_parts(
         finally:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
+
+        if progress_callback is not None:
+            progress_callback(part_index, total_parts, output_path)

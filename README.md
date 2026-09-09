@@ -18,6 +18,12 @@ Split every 100 pages:
 pdf-split input.pdf --pages 100 --out output/
 ```
 
+Show a wide, FTP-style progress bar while writing files:
+
+```bash
+pdf-split input.pdf --pages 100 --out output/ --verbose
+```
+
 Split whenever a page contains a marker. The matching page starts the new PDF:
 
 ```bash
