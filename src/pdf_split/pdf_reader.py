@@ -38,8 +38,11 @@ def extract_top_right_page_texts(input_path: Path) -> list[str | None]:
         with pdfplumber.open(input_path) as pdf:
             texts: list[str | None] = []
             for page in pdf.pages:
+                x0, y0, x1, y1 = page.bbox
+                width = x1 - x0
+                height = y1 - y0
                 top_right = page.crop(
-                    (page.width * 0.65, 0, page.width, page.height * 0.2)
+                    (x0 + width * 0.65, y0, x1, y0 + height * 0.2)
                 )
                 texts.append(top_right.extract_text())
             return texts
