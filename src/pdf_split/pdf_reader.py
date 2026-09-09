@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Callable
 
 import pdfplumber
 from pypdf import PdfReader
@@ -33,11 +34,15 @@ def extract_page_texts(input_path: Path) -> list[str | None]:
         raise PdfSplitError(_text_extraction_error(input_path, exc)) from exc
 
 
-def extract_top_right_page_texts(input_path: Path) -> list[str | None]:
+def extract_top_right_page_texts(
+    input_path: Path,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> list[str | None]:
     try:
         with pdfplumber.open(input_path) as pdf:
             texts: list[str | None] = []
-            for page in pdf.pages:
+            total_pages = len(pdf.pages)
+            for page_number, page in enumerate(pdf.pages, start=1):
                 x0, y0, x1, y1 = page.bbox
                 width = x1 - x0
                 height = y1 - y0
@@ -45,6 +50,8 @@ def extract_top_right_page_texts(input_path: Path) -> list[str | None]:
                     (x0 + width * 0.65, y0, x1, y0 + height * 0.2)
                 )
                 texts.append(top_right.extract_text())
+                if progress_callback is not None:
+                    progress_callback(page_number, total_pages)
             return texts
     except Exception as exc:
         raise PdfSplitError(_text_extraction_error(input_path, exc)) from exc

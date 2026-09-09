@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 import logging
 from pathlib import Path
 import sys
+from typing import Callable
 
 from pdf_split.errors import PdfSplitError
 from pdf_split.matcher import literal_page_matches
@@ -44,14 +45,23 @@ def configure_pdf_logging() -> None:
     logging.getLogger("pdfminer").setLevel(logging.ERROR)
 
 
-def format_progress(completed_parts: int, total_parts: int, width: int = 40) -> str:
+def format_progress(
+    completed_parts: int,
+    total_parts: int,
+    width: int = 40,
+    active_label_template: str = "Writing part {completed}/{total}",
+    done_label: str = "Done",
+) -> str:
     percent = round((completed_parts / total_parts) * 100)
     filled = round((completed_parts / total_parts) * width)
     bar = "#" * filled + "-" * (width - filled)
     label = (
-        "Done"
+        done_label
         if completed_parts == total_parts
-        else f"Writing part {completed_parts}/{total_parts}"
+        else active_label_template.format(
+            completed=completed_parts,
+            total=total_parts,
+        )
     )
     return f"[{bar}] {percent}% {label}"
 
@@ -103,7 +113,22 @@ def run(argv: list[str] | None = None) -> int:
                     "Analyzing police document codes in the upper-right page area...",
                     file=sys.stderr,
                 )
-            page_codes = detect_police_page_codes(input_path, args.police_level)
+            analysis_progress_callback = None
+            if args.verbose:
+                analysis_progress_callback = lambda completed, total: print(
+                    format_progress(
+                        completed,
+                        total,
+                        active_label_template="Analyzing page {completed}/{total}",
+                        done_label="Analysis done",
+                    ),
+                    file=sys.stderr,
+                )
+            page_codes = detect_police_page_codes(
+                input_path,
+                args.police_level,
+                progress_callback=analysis_progress_callback,
+            )
             intervals, interval_codes = plan_police_code_splits(page_codes)
             if args.verbose:
                 coded_pages = sum(code is not None for code in page_codes)
@@ -153,8 +178,15 @@ def run(argv: list[str] | None = None) -> int:
     return 0
 
 
-def detect_police_page_codes(input_path: Path, level: int) -> list[str | None]:
-    page_texts = extract_top_right_page_texts(input_path)
+def detect_police_page_codes(
+    input_path: Path,
+    level: int,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> list[str | None]:
+    page_texts = extract_top_right_page_texts(
+        input_path,
+        progress_callback=progress_callback,
+    )
     page_codes: list[str | None] = []
     for text in page_texts:
         code = detect_police_code(text)

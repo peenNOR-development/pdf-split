@@ -165,6 +165,11 @@ def test_cli_verbose_explains_police_code_analysis(tmp_path, capsys):
         "Analyzing police document codes in the upper-right page area..."
         in captured.err
     )
+    assert (
+        "[####################--------------------] 50% Analyzing page 1/2"
+        in captured.err
+    )
+    assert "[########################################] 100% Analysis done" in captured.err
     assert "Detected 2 coded page(s) and 2 output group(s)." in captured.err
 
 
