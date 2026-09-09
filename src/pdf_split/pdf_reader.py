@@ -43,6 +43,19 @@ def extract_top_right_page_texts(
             texts: list[str | None] = []
             total_pages = len(pdf.pages)
             for page_number, page in enumerate(pdf.pages, start=1):
+                page_red_text = _extract_red_text(
+                    _visual_top_right_chars(
+                        getattr(page, "chars", []),
+                        page.bbox,
+                        getattr(page, "rotation", 0),
+                    )
+                )
+                if page_red_text:
+                    texts.append(page_red_text)
+                    if progress_callback is not None:
+                        progress_callback(page_number, total_pages)
+                    continue
+
                 x0, y0, x1, y1 = page.bbox
                 width = x1 - x0
                 height = y1 - y0
@@ -61,6 +74,59 @@ def extract_top_right_page_texts(
 def _extract_red_text(chars: list[dict]) -> str | None:
     text = "".join(char.get("text", "") for char in chars if _is_red_char(char))
     return text or None
+
+
+def _visual_top_right_chars(
+    chars: list[dict],
+    page_bbox: tuple[float, float, float, float],
+    rotation: int,
+) -> list[dict]:
+    x0, y0, x1, y1 = page_bbox
+    width = x1 - x0
+    height = y1 - y0
+    rotation = rotation % 360
+
+    return [
+        char
+        for char in chars
+        if _is_in_visual_top_right(
+            _char_center(char),
+            x0,
+            y0,
+            width,
+            height,
+            rotation,
+        )
+    ]
+
+
+def _char_center(char: dict) -> tuple[float, float]:
+    x_center = (float(char.get("x0", 0)) + float(char.get("x1", 0))) / 2
+    y_center = (float(char.get("top", 0)) + float(char.get("bottom", 0))) / 2
+    return x_center, y_center
+
+
+def _is_in_visual_top_right(
+    center: tuple[float, float],
+    x0: float,
+    y0: float,
+    width: float,
+    height: float,
+    rotation: int,
+) -> bool:
+    x, y = center
+    right = x >= x0 + width * 0.65
+    left = x <= x0 + width * 0.35
+    top = y <= y0 + height * 0.35
+    bottom = y >= y0 + height * 0.65
+
+    if rotation == 90:
+        return right and bottom
+    if rotation == 180:
+        return left and bottom
+    if rotation == 270:
+        return left and top
+    return right and top
 
 
 def _is_red_char(char: dict) -> bool:

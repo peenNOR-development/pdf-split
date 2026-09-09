@@ -65,6 +65,26 @@ def create_police_pdf_with_black_top_right_codes(
     pdf.save()
 
 
+def create_rotated_police_pdf(path: Path, pages: list[tuple[str, str]]) -> None:
+    source_path = path.with_name(f"{path.stem}_source.pdf")
+    pdf = canvas.Canvas(str(source_path), pagesize=letter)
+    for code, body in pages:
+        pdf.setFillColorRGB(1, 0, 0)
+        pdf.drawRightString(560, 760, code)
+        pdf.setFillColorRGB(0, 0, 0)
+        pdf.drawString(72, 720, body)
+        pdf.showPage()
+    pdf.save()
+
+    reader = PdfReader(source_path)
+    writer = PdfWriter()
+    for page in reader.pages:
+        page.rotate(90)
+        writer.add_page(page)
+    with path.open("wb") as output_file:
+        writer.write(output_file)
+
+
 def page_count(path: Path) -> int:
     return len(PdfReader(path).pages)
 
@@ -175,6 +195,29 @@ def test_cli_police_mode_prefers_red_document_codes(tmp_path):
             ("01,01", "99,99", "first"),
             ("01,02", "98,99", "same top-level case"),
             ("02,01", "97,99", "new top-level case"),
+        ],
+    )
+
+    exit_code = run([str(input_pdf), "--police-level", "1", "--out", str(output_dir)])
+
+    assert exit_code == 0
+    assert sorted(path.name for path in output_dir.iterdir()) == [
+        "police_01.pdf",
+        "police_02.pdf",
+    ]
+    assert page_count(output_dir / "police_01.pdf") == 2
+    assert page_count(output_dir / "police_02.pdf") == 1
+
+
+def test_cli_police_mode_handles_rotated_landscape_pages(tmp_path):
+    input_pdf = tmp_path / "police.pdf"
+    output_dir = tmp_path / "out"
+    create_rotated_police_pdf(
+        input_pdf,
+        [
+            ("01,01", "first"),
+            ("01,02", "same top-level case"),
+            ("02,01", "new top-level case"),
         ],
     )
 
