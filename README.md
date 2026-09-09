@@ -7,6 +7,7 @@
 ```bash
 python -m venv .venv
 .venv/bin/pip install -e ".[dev]"
+source .venv/bin/activate
 ```
 
 ## Usage

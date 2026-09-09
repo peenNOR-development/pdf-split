@@ -42,7 +42,12 @@ def run(argv: list[str] | None = None) -> int:
         if args.pages is not None and args.pages < 1:
             raise PdfSplitError("--pages must be a positive integer")
 
-        output_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise PdfSplitError(
+                f"Could not create output directory {output_dir}: {exc}"
+            ) from exc
         total_pages = get_page_count(input_path)
 
         if args.pages is not None:
@@ -58,12 +63,27 @@ def run(argv: list[str] | None = None) -> int:
 
         output_paths = build_output_paths(input_path, output_dir, len(intervals))
         ensure_outputs_available(output_paths, overwrite=args.overwrite)
-        write_pdf_parts(input_path, intervals, output_paths)
+        try:
+            write_pdf_parts(
+                input_path,
+                intervals,
+                output_paths,
+                overwrite=args.overwrite,
+            )
+        except OSError as exc:
+            raise PdfSplitError(f"Could not write output files to {output_dir}: {exc}") from exc
     except PdfSplitError as exc:
         print(f"pdf-split: error: {exc}", file=sys.stderr)
         return 1
     except ValueError as exc:
         print(f"pdf-split: error: {exc}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(
+            f"pdf-split: error: Filesystem error while processing {input_path} "
+            f"or writing to {output_dir}: {exc}",
+            file=sys.stderr,
+        )
         return 1
 
     print(f"Wrote {len(output_paths)} file(s) to {output_dir}")

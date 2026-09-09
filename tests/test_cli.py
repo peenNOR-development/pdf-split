@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
@@ -38,6 +38,10 @@ def page_count(path: Path) -> int:
     return len(PdfReader(path).pages)
 
 
+def page_texts(path: Path) -> list[str]:
+    return [page.extract_text().strip() for page in PdfReader(path).pages]
+
+
 def test_cli_splits_by_page_count(tmp_path, capsys):
     input_pdf = tmp_path / "large.pdf"
     output_dir = tmp_path / "out"
@@ -51,6 +55,9 @@ def test_cli_splits_by_page_count(tmp_path, capsys):
     assert page_count(output_dir / "large_part_001.pdf") == 2
     assert page_count(output_dir / "large_part_002.pdf") == 2
     assert page_count(output_dir / "large_part_003.pdf") == 1
+    assert page_texts(output_dir / "large_part_001.pdf") == ["one", "two"]
+    assert page_texts(output_dir / "large_part_002.pdf") == ["three", "four"]
+    assert page_texts(output_dir / "large_part_003.pdf") == ["five"]
 
 
 def test_cli_splits_by_text_marker(tmp_path):
@@ -73,6 +80,9 @@ def test_cli_splits_by_text_marker(tmp_path):
     assert page_count(output_dir / "customers_part_001.pdf") == 2
     assert page_count(output_dir / "customers_part_002.pdf") == 2
     assert page_count(output_dir / "customers_part_003.pdf") == 1
+    assert page_texts(output_dir / "customers_part_001.pdf") == ["KUNDE A", "page A2"]
+    assert page_texts(output_dir / "customers_part_002.pdf") == ["KUNDE B", "page B2"]
+    assert page_texts(output_dir / "customers_part_003.pdf") == ["KUNDE C"]
 
 
 def test_cli_refuses_to_overwrite_existing_output(tmp_path, capsys):
@@ -102,3 +112,49 @@ def test_cli_overwrites_existing_output_when_requested(tmp_path):
 
     assert exit_code == 0
     assert page_count(output_dir / "input_part_001.pdf") == 2
+
+
+def test_cli_reports_output_directory_creation_failure(tmp_path, capsys):
+    input_pdf = tmp_path / "input.pdf"
+    output_file = tmp_path / "out"
+    create_text_pdf(input_pdf, ["one"])
+    output_file.write_text("not a directory")
+
+    exit_code = run([str(input_pdf), "--pages", "1", "--out", str(output_file)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Could not create output directory" in captured.err
+    assert str(output_file) in captured.err
+
+
+def test_cli_reports_output_write_failure(tmp_path, capsys, monkeypatch):
+    input_pdf = tmp_path / "input.pdf"
+    create_text_pdf(input_pdf, ["one"])
+
+    def fail_write(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("pdf_split.cli.write_pdf_parts", fail_write)
+
+    exit_code = run([str(input_pdf), "--pages", "1", "--out", str(tmp_path / "out")])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Could not write output files" in captured.err
+    assert "disk full" in captured.err
+
+
+def test_cli_rejects_encrypted_input(tmp_path, capsys):
+    input_pdf = tmp_path / "encrypted.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=letter[0], height=letter[1])
+    writer.encrypt("secret")
+    with input_pdf.open("wb") as output_file:
+        writer.write(output_file)
+
+    exit_code = run([str(input_pdf), "--pages", "1", "--out", str(tmp_path / "out")])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Encrypted or password-protected PDFs are not supported" in captured.err
