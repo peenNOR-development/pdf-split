@@ -1,10 +1,11 @@
+import logging
 from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
-from pdf_split.cli import run
+from pdf_split.cli import configure_pdf_logging, run
 
 
 def test_cli_requires_existing_input_file(capsys):
@@ -147,6 +148,37 @@ def test_cli_splits_police_documents_by_level_two(tmp_path):
         "01,02,01\nsecond child",
     ]
     assert page_texts(output_dir / "police_02.01.pdf") == ["02,01\nthird"]
+
+
+def test_cli_verbose_explains_police_code_analysis(tmp_path, capsys):
+    input_pdf = tmp_path / "police.pdf"
+    output_dir = tmp_path / "out"
+    create_police_pdf(input_pdf, [("01", "first"), ("02", "second")])
+
+    exit_code = run(
+        [str(input_pdf), "--police-level", "1", "--out", str(output_dir), "--verbose"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert (
+        "Analyzing police document codes in the upper-right page area..."
+        in captured.err
+    )
+    assert "Detected 2 coded page(s) and 2 output group(s)." in captured.err
+
+
+def test_configure_pdf_logging_suppresses_pdfminer_warnings():
+    pdfminer_logger = logging.getLogger("pdfminer")
+    previous_level = pdfminer_logger.level
+    try:
+        pdfminer_logger.setLevel(logging.WARNING)
+
+        configure_pdf_logging()
+
+        assert pdfminer_logger.level == logging.ERROR
+    finally:
+        pdfminer_logger.setLevel(previous_level)
 
 
 def test_cli_refuses_to_overwrite_existing_output(tmp_path, capsys):

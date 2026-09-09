@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+import logging
 from pathlib import Path
 import sys
 
@@ -39,6 +40,10 @@ def build_parser() -> ArgumentParser:
     return parser
 
 
+def configure_pdf_logging() -> None:
+    logging.getLogger("pdfminer").setLevel(logging.ERROR)
+
+
 def format_progress(completed_parts: int, total_parts: int, width: int = 40) -> str:
     percent = round((completed_parts / total_parts) * 100)
     filled = round((completed_parts / total_parts) * width)
@@ -52,6 +57,7 @@ def format_progress(completed_parts: int, total_parts: int, width: int = 40) -> 
 
 
 def run(argv: list[str] | None = None) -> int:
+    configure_pdf_logging()
     parser = build_parser()
     try:
         args = parser.parse_args(argv)
@@ -92,8 +98,20 @@ def run(argv: list[str] | None = None) -> int:
             intervals = plan_marker_splits(total_pages, matching_pages)
             output_paths = build_output_paths(input_path, output_dir, len(intervals))
         else:
+            if args.verbose:
+                print(
+                    "Analyzing police document codes in the upper-right page area...",
+                    file=sys.stderr,
+                )
             page_codes = detect_police_page_codes(input_path, args.police_level)
             intervals, interval_codes = plan_police_code_splits(page_codes)
+            if args.verbose:
+                coded_pages = sum(code is not None for code in page_codes)
+                print(
+                    f"Detected {coded_pages} coded page(s) "
+                    f"and {len(intervals)} output group(s).",
+                    file=sys.stderr,
+                )
             output_paths = build_police_output_paths(
                 input_path,
                 output_dir,
